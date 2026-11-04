@@ -131,6 +131,7 @@ func run(ctx context.Context, args []string) error {
 	proxyText := flags.String("trusted-proxies", "", "exact proxy IPs or CIDRs, comma separated")
 	lanText := flags.String("allow-private-lan-cidr", "", "explicit reviewed RFC1918 test subnet(s)")
 	loopback := flags.Bool("allow-loopback", false, "allow loopback game endpoints for local tests only")
+	publishDiagnostics := flags.Bool("publish-diagnostics", false, "fixed publication counters; at most8 secret-free stderr events")
 	enrollmentListen := flags.String("enrollment-listen", "", "optional literal loopback operator listener; disabled by default")
 	enrollmentToken := flags.String("enrollment-token-file", "", "protected gateway operator token file, never a command-line secret")
 	enrollmentCandidate := flags.String("enrollment-candidate-ip", "", "operator-only candidate override for newly enrolled keys")
@@ -182,8 +183,12 @@ func run(ctx context.Context, args []string) error {
 		return errors.New("cannot open separate DCE nonce database")
 	}
 	defer db.Close()
+	var diagnostics *dcedirectory.PublishDiagnostics
+	if *publishDiagnostics {
+		diagnostics = dcedirectory.NewPublishDiagnostics(os.Stderr)
+	}
 	service, err := dcedirectory.New(dcedirectory.Config{Key: private, Approved: keys, Nonces: db,
-		CandidateOverrides: overrides, Clients: httpx.Clients{Proxies: proxies}, AllowLoopback: *loopback, AllowPrivateLAN: lan})
+		CandidateOverrides: overrides, Clients: httpx.Clients{Proxies: proxies}, AllowLoopback: *loopback, AllowPrivateLAN: lan, Diagnostics: diagnostics})
 	if err != nil {
 		return err
 	}
@@ -272,7 +277,8 @@ func run(ctx context.Context, args []string) error {
 		case <-probeTick.C:
 			for _, probe := range service.NextProbes() {
 				// Failed UDP writes leave no visible row; the bounded next attempt may recover.
-				_, _ = udp.WriteToUDPAddrPort(probe.Packet, probe.Destination)
+				n, err := udp.WriteToUDPAddrPort(probe.Packet, probe.Destination)
+				service.NoteProbeSend(err == nil && n == len(probe.Packet))
 			}
 		case <-purgeTick.C:
 			if err := db.Purge(sign.NonceWindow, 24*time.Hour); err != nil {

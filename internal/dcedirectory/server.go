@@ -52,6 +52,7 @@ type Config struct {
 	AllowPrivateLAN    []netip.Prefix
 	Now                func() time.Time
 	Random             io.Reader
+	Diagnostics        *PublishDiagnostics
 }
 
 // Advertisement contains host claims, authenticated by its signed PUT. It has
@@ -142,6 +143,7 @@ type Server struct {
 	allowPrivateLAN                                                                  []netip.Prefix
 	now                                                                              func() time.Time
 	random                                                                           io.Reader
+	diagnostics                                                                      *PublishDiagnostics
 	records                                                                          map[string]*record
 	tickets                                                                          map[[16]byte]string
 	reads, writes, publishers, udpSources, udpKeys, udpGlobal, ackSources, ackGlobal *limit.Limiter
@@ -165,7 +167,7 @@ func New(config Config) (*Server, error) {
 	s := &Server{key: append(ed25519.PrivateKey(nil), config.Key...), approved: map[string]ed25519.PublicKey{},
 		nonces: config.Nonces, candidateOverrides: map[string]netip.Addr{}, clients: config.Clients,
 		allowLoopback: config.AllowLoopback, allowPrivateLAN: append([]netip.Prefix(nil), config.AllowPrivateLAN...),
-		now: config.Now, random: config.Random, records: map[string]*record{}, tickets: map[[16]byte]string{}}
+		now: config.Now, random: config.Random, diagnostics: config.Diagnostics, records: map[string]*record{}, tickets: map[[16]byte]string{}}
 	s.keyID = sign.KeyID(s.key.Public().(ed25519.PublicKey))
 	raw, _ := hex.DecodeString(s.keyID)
 	copy(s.keyIDRaw[:], raw)
@@ -338,7 +340,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	advert, err := decodeAdvertisement(body, s.now())
-	if err != nil || sign.ServerID(auth.KeyID, advert.Instance) != id {
+	if err != nil {
+		if s.diagnostics != nil {
+			s.diagnostics.record(advertisementDiagnostic(advert, err))
+		}
+		s.fail(w, 400, "advertisement")
+		return
+	}
+	if sign.ServerID(auth.KeyID, advert.Instance) != id {
+		s.diagnostics.record(DiagAdvertisementID)
 		s.fail(w, 400, "advertisement")
 		return
 	}
@@ -347,6 +357,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		candidate = override
 	}
 	if !s.allowedEndpoint(candidate) {
+		s.diagnostics.record(DiagCandidate)
 		s.fail(w, 400, "candidate_address")
 		return
 	}
@@ -441,10 +452,12 @@ func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Adverti
 	s.sweep(now)
 	old := s.records[id]
 	if old != nil && old.keyID != keyID {
+		s.diagnostics.record(DiagPublishOwner)
 		s.fail(w, 403, "owner")
 		return
 	}
 	if old != nil && advert.Sequence <= old.advert.Sequence {
+		s.diagnostics.record(DiagPublishSequence)
 		s.fail(w, 409, "sequence")
 		return
 	}
@@ -456,21 +469,25 @@ func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Adverti
 			}
 		}
 		if count >= PerKeyServers || len(s.records) >= MaxServers {
+			s.diagnostics.record(DiagPublishQuota)
 			s.fail(w, 429, "quota")
 			return
 		}
 	}
 	var ticket [16]byte
 	if _, err := io.ReadFull(s.random, ticket[:]); err != nil {
+		s.diagnostics.record(DiagPublishRandom)
 		s.fail(w, 500, "random")
 		return
 	}
 	if _, exists := s.tickets[ticket]; exists {
+		s.diagnostics.record(DiagPublishRandom)
 		s.fail(w, 500, "random_collision")
 		return
 	}
 	rec := &record{keyID: keyID, advert: advert, lastPut: now, ticket: ticket, ticketExpires: now.Add(TicketTTL), source: candidate}
 	if _, err := io.ReadFull(s.random, rec.nonce[:]); err != nil {
+		s.diagnostics.record(DiagPublishRandom)
 		s.fail(w, 500, "random")
 		return
 	}
@@ -480,6 +497,7 @@ func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Adverti
 		delete(s.tickets, old.ticket)
 	}
 	s.records[id], s.tickets[ticket] = rec, id
+	s.diagnostics.record(DiagTicketAccepted)
 	s.signed(w, 202, Challenge{Protocol, Family, id, Master{s.keyID, now.Unix()}, hex.EncodeToString(ticket[:]),
 		rec.ticketExpires.Unix(), 30, 90}, now)
 }

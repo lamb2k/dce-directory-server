@@ -102,6 +102,7 @@ func (s *Server) NextProbes() []Probe {
 		}
 		rec.lastReply = now
 		rec.replies++
+		s.diagnostics.record(DiagProbeScheduled)
 		result = append(result, Probe{rec.source, append([]byte(nil), rec.challenge...)})
 	}
 	return result
@@ -111,8 +112,12 @@ func (s *Server) NextProbes() []Probe {
 // nonce and exact observed UDP source, which must equal the constrained
 // candidate. This is the only path that makes a listing visible.
 func (s *Server) AcceptAck(packet []byte, source netip.AddrPort) bool {
-	if len(packet) != PacketSize || !bytes.Equal(packet[:8], []byte(PacketMagic)) || packet[8] != KindAck ||
-		!s.allowedEndpoint(source.Addr()) {
+	if len(packet) != PacketSize || !bytes.Equal(packet[:8], []byte(PacketMagic)) || packet[8] != KindAck {
+		s.diagnostics.record(DiagAckFormat)
+		return false
+	}
+	if !s.allowedEndpoint(source.Addr()) {
+		s.diagnostics.record(DiagAckAddress)
 		return false
 	}
 	source = netip.AddrPortFrom(source.Addr().Unmap(), source.Port())
@@ -123,26 +128,47 @@ func (s *Server) AcceptAck(packet []byte, source netip.AddrPort) bool {
 	defer s.mu.Unlock()
 	id, exists := s.tickets[ticket]
 	if !exists {
+		s.diagnostics.record(DiagAckTicket)
 		return false
 	}
 	rec := s.records[id]
-	if rec == nil || !now.Before(rec.ticketExpires) || rec.replies == 0 || source != rec.source ||
-		subtle.ConstantTimeCompare(packet[25:57], rec.nonce[:]) != 1 {
+	if rec == nil {
+		s.diagnostics.record(DiagAckTicket)
+		return false
+	}
+	if !now.Before(rec.ticketExpires) {
+		s.diagnostics.record(DiagAckExpired)
+		return false
+	}
+	if rec.replies == 0 {
+		s.diagnostics.record(DiagAckUnsent)
+		return false
+	}
+	if source != rec.source {
+		s.diagnostics.record(DiagAckSource)
+		return false
+	}
+	if subtle.ConstantTimeCompare(packet[25:57], rec.nonce[:]) != 1 {
+		s.diagnostics.record(DiagAckNonce)
 		return false
 	}
 	if ok, _ := s.ackGlobal.Allow("all"); !ok {
+		s.diagnostics.record(DiagAckRate)
 		return false
 	}
 	if ok, _ := s.ackSources.Allow(source.Addr().String()); !ok {
+		s.diagnostics.record(DiagAckRate)
 		return false
 	}
 	public := s.approved[rec.keyID]
 	if public == nil || !VerifyPacket(public, s.keyIDRaw, packet, KindAck) {
+		s.diagnostics.record(DiagAckSignature)
 		return false
 	}
 	rec.verified = &Entry{ID: id, KeyID: rec.keyID, Advertisement: rec.advert,
 		Endpoint: Endpoint{source.Addr().String(), source.Port()}, Updated: now.Unix(),
 		Expires: now.Add(TTL).Unix(), Reachable: true}
 	delete(s.tickets, ticket)
+	s.diagnostics.record(DiagAckAccepted)
 	return true
 }
