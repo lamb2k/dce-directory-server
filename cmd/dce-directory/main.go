@@ -5,7 +5,6 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -27,10 +26,7 @@ import (
 	"github.com/OpenCommunityEdition/opence-master-server/internal/store"
 )
 
-type approval struct {
-	PublicKey   string `json:"public_key"`
-	CandidateIP string `json:"candidate_ip,omitempty"`
-}
+type approval = dcedirectory.Approval
 
 // bindState refuses an existing unmarked database and a changed signing key.
 // The small adjacent marker also keeps accidental native-state reuse from
@@ -63,22 +59,9 @@ func bindState(path, keyID string) error {
 }
 
 func approvals(path string) ([]ed25519.PublicKey, map[string]netip.Addr, error) {
-	file, err := os.Open(path)
+	entries, err := dcedirectory.ReadApprovalFile(path)
 	if err != nil {
 		return nil, nil, err
-	}
-	defer file.Close()
-	decoder := json.NewDecoder(io.LimitReader(file, 256*1024))
-	decoder.DisallowUnknownFields()
-	var entries []approval
-	if err := decoder.Decode(&entries); err != nil {
-		return nil, nil, err
-	}
-	if err := decoder.Decode(new(any)); err != io.EOF {
-		return nil, nil, errors.New("trailing approval data")
-	}
-	if len(entries) > 1024 {
-		return nil, nil, errors.New("too many approved keys")
 	}
 	keys := make([]ed25519.PublicKey, 0, len(entries))
 	overrides := map[string]netip.Addr{}
@@ -103,6 +86,19 @@ func approvals(path string) ([]ed25519.PublicKey, map[string]netip.Addr, error) 
 		}
 	}
 	return keys, overrides, nil
+}
+
+func readEnrollmentToken(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", errors.New("cannot open enrollment token file")
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 257))
+	if err != nil || len(data) > 256 {
+		return "", errors.New("invalid enrollment token file")
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 func prefixes(text string) ([]netip.Prefix, error) {
@@ -135,11 +131,24 @@ func run(ctx context.Context, args []string) error {
 	proxyText := flags.String("trusted-proxies", "", "exact proxy IPs or CIDRs, comma separated")
 	lanText := flags.String("allow-private-lan-cidr", "", "explicit reviewed RFC1918 test subnet(s)")
 	loopback := flags.Bool("allow-loopback", false, "allow loopback game endpoints for local tests only")
+	enrollmentListen := flags.String("enrollment-listen", "", "optional literal loopback operator listener; disabled by default")
+	enrollmentToken := flags.String("enrollment-token-file", "", "protected gateway operator token file, never a command-line secret")
+	enrollmentCandidate := flags.String("enrollment-candidate-ip", "", "operator-only candidate override for newly enrolled keys")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 || *keyPath == "" || *dbPath == "" || *approvalPath == "" {
 		return errors.New("set --key, --db and --approvals to separate DCE state files")
+	}
+	if *enrollmentListen != "" {
+		if _, err := dcedirectory.ValidateEnrollmentListen(*enrollmentListen); err != nil {
+			return err
+		}
+		if *enrollmentToken == "" {
+			return errors.New("enrollment requires a protected operator token file")
+		}
+	} else if *enrollmentToken != "" || *enrollmentCandidate != "" {
+		return errors.New("enrollment listener is disabled")
 	}
 	absKey, err := filepath.Abs(*keyPath)
 	if err != nil {
@@ -178,6 +187,33 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	var operator *http.Server
+	var operatorListener net.Listener
+	if *enrollmentListen != "" {
+		token, err := readEnrollmentToken(*enrollmentToken)
+		if err != nil {
+			return err
+		}
+		var candidate netip.Addr
+		if *enrollmentCandidate != "" {
+			candidate, err = netip.ParseAddr(*enrollmentCandidate)
+			if err != nil || !candidate.Is4() {
+				return errors.New("enrollment candidate must be literal IPv4")
+			}
+		}
+		handler, err := dcedirectory.NewEnrollment(service, dcedirectory.EnrollmentConfig{Token: token,
+			Approvals: &dcedirectory.ApprovalFile{Path: *approvalPath}, CandidateIP: candidate})
+		if err != nil {
+			return err
+		}
+		operatorListener, err = net.Listen("tcp", *enrollmentListen)
+		if err != nil {
+			return err
+		}
+		defer operatorListener.Close()
+		operator = &http.Server{Handler: handler, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 10 * time.Second, MaxHeaderBytes: 4096}
+		defer operator.Close()
+	}
 	udpAddress, err := net.ResolveUDPAddr("udp4", *udpListen)
 	if err != nil {
 		return err
@@ -194,8 +230,11 @@ func run(ctx context.Context, args []string) error {
 	defer tcp.Close()
 	server := &http.Server{Handler: service, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 8192}
-	errorsCh := make(chan error, 2)
+	errorsCh := make(chan error, 3)
 	go func() { errorsCh <- server.Serve(tcp) }()
+	if operator != nil {
+		go func() { errorsCh <- operator.Serve(operatorListener) }()
+	}
 	go func() {
 		// One extra byte detects oversize datagrams without parsing truncated data.
 		buffer := make([]byte, dcedirectory.PacketSize+1)
@@ -218,6 +257,11 @@ func run(ctx context.Context, args []string) error {
 		case <-ctx.Done():
 			shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
+			if operator != nil {
+				if err := operator.Shutdown(shutdown); err != nil {
+					return err
+				}
+			}
 			return server.Shutdown(shutdown)
 		case err := <-errorsCh:
 			_ = server.Close()

@@ -1,0 +1,27 @@
+{
+  "canonical_hex": "4443452d4465766963652d456e726f6c6c6d656e742d76310a313062613638326338616431333531330a656432353531393a613039616135663437613637353938303266663935356638646332643261313461356339396432336265393766383634313237666639333833343535613466300a30303031303230333034303530363037303830393061306230633064306530660a313739333830303036300a61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161",
+  "canonical_utf8": "DCE-Device-Enrollment-v1\n10ba682c8ad13513\ned25519:a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0\n000102030405060708090a0b0c0d0e0f\n1793800060\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "challenge_response": {
+    "body": "{\"protocol\":1,\"masterKeyId\":\"10ba682c8ad13513\",\"keyId\":\"1325b850c2871916\",\"publicKey\":\"ed25519:a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0\",\"challenge\":\"000102030405060708090a0b0c0d0e0f\",\"expires\":1793800060,\"serverTime\":1793800000,\"sessionBinding\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+    "headers": {
+      "Signature": "ed25519=buIqWvhCv538sN6iAuX9Q3bebB9Zz8js/l80qI7bQz+t+obA2W6/F6SudsKVZqjoQqzZUSO+BIjgMImqEnikDA==",
+      "Signature-Key": "10ba682c8ad13513",
+      "Signature-Time": "1793800000"
+    },
+    "status": 200
+  },
+  "host_public": "ed25519:a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0",
+  "host_seed_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+  "master_public": "ed25519:d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+  "notice": "SYNTHETIC KNOWN TEST SEED. Never provision in browser, VMU or service.",
+  "register_response": {
+    "body": "{\"ok\":true,\"masterKeyId\":\"10ba682c8ad13513\",\"keyId\":\"1325b850c2871916\",\"publicKey\":\"ed25519:a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0\",\"approved\":true,\"created\":true,\"serverTime\":1793800000}",
+    "headers": {
+      "Signature": "ed25519=V+cBqYAtKHIvY1AG4xaa5xXgQoh+Xp/S86Jy5Org6cjsO+kRSN47xeV1GN7Hn3g3SMIrhD/8+VrSBnC9iaM3CQ==",
+      "Signature-Key": "10ba682c8ad13513",
+      "Signature-Time": "1793800000"
+    },
+    "status": 200
+  },
+  "signature": "Eq+uAS7m/prebotiJndeptVXpy2tm3oQfJlDH5C9PL6HiUw/VJDYtDCQsxDylyvRBGIJOGwBBF5ldrhYi6nxBw=="
+}

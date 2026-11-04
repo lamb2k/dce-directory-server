@@ -76,3 +76,22 @@ func TestCommandRequiresSeparateFiles(t *testing.T) {
 		t.Fatal("literal private seed accepted as CLI key")
 	}
 }
+
+func TestEnrollmentFlagsFailClosedBeforeOpeningState(t *testing.T) {
+	base := []string{"--key", "unused", "--db", "unused", "--approvals", "unused"}
+	for _, extra := range [][]string{{"--enrollment-listen", "0.0.0.0:18097", "--enrollment-token-file", "unused"},
+		{"--enrollment-listen", "localhost:18097", "--enrollment-token-file", "unused"},
+		{"--enrollment-listen", "127.0.0.1:18097"}, {"--enrollment-token-file", "unused"}} {
+		args := append(append([]string{}, base...), extra...)
+		if err := run(context.Background(), args); err == nil || strings.Contains(err.Error(), "existing file") {
+			t.Fatal("enrollment flags not rejected before state access")
+		}
+	}
+	path := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(path, []byte(strings.Repeat("x", 257)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readEnrollmentToken(path); err == nil {
+		t.Fatal("unbounded token read")
+	}
+}

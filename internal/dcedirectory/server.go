@@ -173,7 +173,14 @@ func New(config Config) (*Server, error) {
 		if len(public) != ed25519.PublicKeySize || sign.SmallOrder(public) {
 			return nil, errors.New("an approved public key is invalid")
 		}
-		s.approved[sign.KeyID(public)] = append(ed25519.PublicKey(nil), public...)
+		id := sign.KeyID(public)
+		if old := s.approved[id]; old != nil && !bytes.Equal(old, public) {
+			return nil, errors.New("key id collision")
+		}
+		s.approved[id] = append(ed25519.PublicKey(nil), public...)
+	}
+	if len(s.approved) > MaxApprovedKeys {
+		return nil, errors.New("approval capacity")
 	}
 	for keyID, address := range config.CandidateOverrides {
 		if s.approved[keyID] == nil || !s.allowedEndpoint(address) {
@@ -300,7 +307,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, 401, "signature_or_clock")
 		return
 	}
+	s.mu.Lock()
 	public := s.approved[auth.KeyID]
+	override, hasOverride := s.candidateOverrides[auth.KeyID]
+	s.mu.Unlock()
 	if public == nil {
 		s.fail(w, 403, "unapproved_key")
 		return
@@ -333,7 +343,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	candidate := client.IP.Unmap()
-	if override, ok := s.candidateOverrides[auth.KeyID]; ok {
+	if hasOverride {
 		candidate = override
 	}
 	if !s.allowedEndpoint(candidate) {
