@@ -135,6 +135,10 @@ func run(ctx context.Context, args []string) error {
 	enrollmentListen := flags.String("enrollment-listen", "", "optional literal loopback operator listener; disabled by default")
 	enrollmentToken := flags.String("enrollment-token-file", "", "protected gateway operator token file, never a command-line secret")
 	enrollmentCandidate := flags.String("enrollment-candidate-ip", "", "operator-only candidate override for newly enrolled keys")
+	relayControl := flags.String("relay-control", "", "literal loopback http base of the relay control port; off when empty")
+	relayKeyFile := flags.String("relay-key-file", "", "protected relay control key file")
+	relayPublic := flags.String("relay-public-ip", "", "relay public IPv4 named in signed replies")
+	relayHello := flags.Uint("relay-hello-port", 5400, "relay port hosts send their outbound hello to")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -187,7 +191,22 @@ func run(ctx context.Context, args []string) error {
 	if *publishDiagnostics {
 		diagnostics = dcedirectory.NewPublishDiagnostics(os.Stderr)
 	}
-	service, err := dcedirectory.New(dcedirectory.Config{Key: private, Approved: keys, Nonces: db,
+	var relay *dcedirectory.RelayConfig
+	if *relayControl != "" {
+		if !strings.HasPrefix(*relayControl, "http://127.0.0.1:") || *relayHello < 1024 || *relayHello > 65535 {
+			return errors.New("invalid relay control or hello port")
+		}
+		address, err := netip.ParseAddr(*relayPublic)
+		if err != nil || !address.Is4() {
+			return errors.New("relay public address must be literal IPv4")
+		}
+		keyBytes, err := os.ReadFile(*relayKeyFile)
+		if err != nil || len(strings.TrimSpace(string(keyBytes))) < 32 {
+			return errors.New("relay key file unavailable")
+		}
+		relay = &dcedirectory.RelayConfig{Control: *relayControl, Key: strings.TrimSpace(string(keyBytes)), Public: address, HelloPort: uint16(*relayHello)}
+	}
+	service, err := dcedirectory.New(dcedirectory.Config{Relay: relay, Key: private, Approved: keys, Nonces: db,
 		CandidateOverrides: overrides, Clients: httpx.Clients{Proxies: proxies}, AllowLoopback: *loopback, AllowPrivateLAN: lan, Diagnostics: diagnostics})
 	if err != nil {
 		return err

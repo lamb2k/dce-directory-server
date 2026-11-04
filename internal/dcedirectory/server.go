@@ -47,6 +47,7 @@ type Config struct {
 	Approved           []ed25519.PublicKey
 	Nonces             Nonces
 	CandidateOverrides map[string]netip.Addr
+	Relay              *RelayConfig
 	Clients            httpx.Clients
 	AllowLoopback      bool
 	AllowPrivateLAN    []netip.Prefix
@@ -114,6 +115,8 @@ type Challenge struct {
 	Expires  int64  `json:"expires"`
 	Interval int    `json:"interval"`
 	TTL      int    `json:"ttl"`
+	// Present only for network versions that understand it: older parsers refuse unknown fields.
+	Relay *RelayGrant `json:"relay,omitempty"`
 }
 
 type record struct {
@@ -138,6 +141,7 @@ type Server struct {
 	approved                                                                         map[string]ed25519.PublicKey
 	nonces                                                                           Nonces
 	candidateOverrides                                                               map[string]netip.Addr
+	relay                                                                            *RelayConfig
 	clients                                                                          httpx.Clients
 	allowLoopback                                                                    bool
 	allowPrivateLAN                                                                  []netip.Prefix
@@ -165,7 +169,7 @@ func New(config Config) (*Server, error) {
 		config.Random = rand.Reader
 	}
 	s := &Server{key: append(ed25519.PrivateKey(nil), config.Key...), approved: map[string]ed25519.PublicKey{},
-		nonces: config.Nonces, candidateOverrides: map[string]netip.Addr{}, clients: config.Clients,
+		nonces: config.Nonces, relay: config.Relay, candidateOverrides: map[string]netip.Addr{}, clients: config.Clients,
 		allowLoopback: config.AllowLoopback, allowPrivateLAN: append([]netip.Prefix(nil), config.AllowPrivateLAN...),
 		now: config.Now, random: config.Random, diagnostics: config.Diagnostics, records: map[string]*record{}, tickets: map[[16]byte]string{}}
 	s.keyID = sign.KeyID(s.key.Public().(ed25519.PublicKey))
@@ -258,6 +262,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	isList := path == ListPath
 	id := strings.TrimPrefix(path, ListPath+"/")
+	joinID, isJoin := strings.CutSuffix(id, RelayJoinSuffix)
+	if isJoin && path != id && sign.ValidKeyID(joinID) && s.relay != nil {
+		id = joinID
+	} else {
+		isJoin = false
+	}
 	isItem := path != id && sign.ValidKeyID(id)
 	if !isList && !isItem {
 		s.fail(w, 404, "not_found")
@@ -278,7 +288,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.list(w, r)
 		return
 	}
-	if !isItem || (r.Method != "PUT" && r.Method != "DELETE") {
+	if !isItem || (r.Method != "PUT" && r.Method != "DELETE") || (isJoin && r.Method != "PUT") {
 		s.fail(w, 405, "method")
 		return
 	}
@@ -339,6 +349,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.remove(w, id, auth.KeyID)
 		return
 	}
+	if isJoin {
+		if len(body) != 0 {
+			s.fail(w, 400, "join_body")
+			return
+		}
+		s.relayJoin(w, r, id)
+		return
+	}
 	advert, err := decodeAdvertisement(body, s.now())
 	if err != nil {
 		if s.diagnostics != nil {
@@ -361,7 +379,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, 400, "candidate_address")
 		return
 	}
-	s.publish(w, id, auth.KeyID, advert, netip.AddrPortFrom(candidate, advert.GamePort))
+	var grant *RelayGrant
+	if s.relay != nil && advert.NetworkVersion >= RelayMinNetworkVersion {
+		var relayed netip.AddrPort
+		grant, relayed, err = s.relayAllocate(r.Context(), auth.KeyID, id)
+		if err != nil {
+			s.fail(w, 503, "relay")
+			return
+		}
+		// The relay's port is what guests use; the proof still has to return through it.
+		advert.GamePort = relayed.Port()
+		candidate = relayed.Addr()
+	}
+	s.publish(w, id, auth.KeyID, advert, netip.AddrPortFrom(candidate, advert.GamePort), grant)
 }
 
 func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
@@ -445,7 +475,7 @@ func (s *Server) sweep(now time.Time) {
 	}
 }
 
-func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Advertisement, candidate netip.AddrPort) {
+func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Advertisement, candidate netip.AddrPort, grant *RelayGrant) {
 	now := s.now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -499,7 +529,7 @@ func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Adverti
 	s.records[id], s.tickets[ticket] = rec, id
 	s.diagnostics.record(DiagTicketAccepted)
 	s.signed(w, 202, Challenge{Protocol, Family, id, Master{s.keyID, now.Unix()}, hex.EncodeToString(ticket[:]),
-		rec.ticketExpires.Unix(), 30, 90}, now)
+		rec.ticketExpires.Unix(), 30, 90, grant}, now)
 }
 
 func (s *Server) remove(w http.ResponseWriter, id, keyID string) {
