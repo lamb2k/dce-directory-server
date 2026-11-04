@@ -13,9 +13,6 @@ import (
 	"time"
 )
 
-// RelayMinNetworkVersion is the first game protocol whose PUT reply parser accepts a relay field.
-const RelayMinNetworkVersion = 5
-
 // RelayJoinSuffix is the signed guest route: PUT /v1/dce/servers/<id>/join with an empty body.
 const RelayJoinSuffix = "/join"
 

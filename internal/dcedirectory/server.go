@@ -74,6 +74,8 @@ type Advertisement struct {
 	Time           int64  `json:"time"`
 	Instance       string `json:"instance"`
 	GamePort       uint16 `json:"game_port"`
+	// Relay 1 asks for a grant; only images whose reply parser knows the field send it. Catalog version stays.
+	Relay uint8 `json:"relay,omitempty"`
 }
 
 type Master struct {
@@ -380,7 +382,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var grant *RelayGrant
-	if s.relay != nil && advert.NetworkVersion >= RelayMinNetworkVersion {
+	if s.relay != nil && advert.Relay == 1 {
 		var relayed netip.AddrPort
 		grant, relayed, err = s.relayAllocate(r.Context(), auth.KeyID, id)
 		if err != nil {
@@ -414,7 +416,7 @@ func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
 			return advert, errors.New("duplicate field")
 		}
 		switch key {
-		case "protocol", "family", "network_version", "build", "map", "map_crc", "mode", "score", "players", "capacity", "name", "sequence", "time", "instance", "game_port":
+		case "protocol", "family", "network_version", "build", "map", "map_crc", "mode", "score", "players", "capacity", "name", "sequence", "time", "instance", "game_port", "relay":
 		default:
 			return advert, errors.New("noncanonical field")
 		}
@@ -437,7 +439,8 @@ func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
 	if err := json.Unmarshal(body, &fields); err != nil {
 		return advert, err
 	}
-	if len(fields) != 15 {
+	_, relayAsked := fields["relay"]
+	if (!relayAsked && len(fields) != 15) || (relayAsked && (len(fields) != 16 || advert.Relay != 1)) {
 		return advert, errors.New("missing fields")
 	}
 	for _, value := range fields {

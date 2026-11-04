@@ -26,9 +26,6 @@ func relayHarness(t *testing.T, status int) (*harness, *[]string) {
 func TestOldProtocolGetsNoRelayField(t *testing.T) {
 	h, calls := relayHarness(t, 200)
 	advert := h.advert()
-	if advert.NetworkVersion >= RelayMinNetworkVersion {
-		t.Skip("harness advert already current")
-	}
 	_, _, response := h.publish(advert)
 	if response.Code != 202 || strings.Contains(response.Body.String(), "relay") || len(*calls) != 0 {
 		t.Fatalf("old client must be untouched: %d %s", response.Code, response.Body)
@@ -73,5 +70,25 @@ func TestJoinNeedsSignatureAndListedHost(t *testing.T) {
 	}
 	if len(*calls) != 0 {
 		t.Fatal("relay contacted for refused join")
+	}
+}
+
+// Real PUT path: asked grant is in the signed reply and the row's port is the relay's; unasked stays direct.
+func TestAskedPutGetsGrant(t *testing.T) {
+	h, calls := relayHarness(t, 200)
+	advert := h.advert()
+	advert.Relay = 1
+	_, _, response := h.publish(advert)
+	if response.Code != 202 || !strings.Contains(response.Body.String(), `"relay":{"host":"127.0.0.1","port":5400`) || len(*calls) != 1 {
+		t.Fatalf("asked PUT: %d %s %v", response.Code, response.Body, *calls)
+	}
+}
+
+func TestRelayFieldOnlyOne(t *testing.T) {
+	h, _ := relayHarness(t, 200)
+	advert := h.advert()
+	advert.Relay = 2
+	if _, _, response := h.publish(advert); response.Code == 202 {
+		t.Fatal("relay field other than 1 accepted")
 	}
 }
