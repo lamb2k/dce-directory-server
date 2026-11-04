@@ -1,0 +1,39 @@
+{
+  "authorization": "OpenCE-Ed25519 keyid=1325b850c2871916, ts=1793800000, nonce=cccccccccccccccccccccccccccccccc, sig=JHsv4/B+G4/oh63iM2ziyhe6NBKfwFurGw4LMnkYaTc+BQSdnX/8o60U6CoyZh1cOOFx98b9z79liSSe6BtgBg==",
+  "canonical_request": "OpenCE-Master-v1\n10ba682c8ad13513\nPUT\n/v1/dce/servers/9bd6d6c8eb79978c\n1793800000\ncccccccccccccccccccccccccccccccc\nbd599f7234e1b52cb32411949d1864982a3354f90929b0cf702f10510f1d29d1",
+  "challenge_response": {
+    "body": "{\"protocol\":1,\"family\":\"dce-net\",\"id\":\"9bd6d6c8eb79978c\",\"master\":{\"key_id\":\"10ba682c8ad13513\",\"time\":1793800000},\"ticket\":\"000102030405060708090a0b0c0d0e0f\",\"expires\":1793800030,\"interval\":30,\"ttl\":90}",
+    "headers": {
+      "Signature": "ed25519=Y3UeQkSWIgu/+ICdvN4lJbq6Jb31pKMddLjf4RiPFJsvo1qwqob7zZ7qHWUqGyT1CFDw0UcYKVG8KIlRegSPAw==",
+      "Signature-Key": "10ba682c8ad13513",
+      "Signature-Time": "1793800000"
+    },
+    "status": 202
+  },
+  "host_key_id": "1325b850c2871916",
+  "host_public": "ed25519:a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0",
+  "host_seed_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+  "list_response": {
+    "body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":3,\"master\":{\"key_id\":\"10ba682c8ad13513\",\"time\":1793800000},\"ttl\":90,\"truncated\":false,\"servers\":[{\"id\":\"9bd6d6c8eb79978c\",\"key_id\":\"1325b850c2871916\",\"protocol\":1,\"family\":\"dce-net\",\"network_version\":3,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150,\"endpoint\":{\"ip\":\"127.0.0.1\",\"port\":5150},\"updated\":1793800000,\"expires\":1793800090,\"reachable\":true}]}",
+    "headers": {
+      "Signature": "ed25519=iShAYMdVBYOwqjIfxYeqPD0n8OxAKJFKKND5EZHVRVRzuH+kEkwDf4FAX9JcR4tHSW1QkA/a1phVLZKjvGlzAQ==",
+      "Signature-Key": "10ba682c8ad13513",
+      "Signature-Time": "1793800000"
+    },
+    "status": 200
+  },
+  "master_key_id": "10ba682c8ad13513",
+  "master_public": "ed25519:d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+  "master_seed_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+  "notice": "SYNTHETIC PUBLIC TEST KEYS ONLY. Never provision these seeds in a service, client profile, VMU or deployment.",
+  "observed_endpoint": "127.0.0.1:5150",
+  "protocol_spec": "docs/DCE_DIRECTORY_PROTOCOL.md",
+  "put_body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":3,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150}",
+  "put_path": "/v1/dce/servers/9bd6d6c8eb79978c",
+  "server_id": "9bd6d6c8eb79978c",
+  "time": 1793800000,
+  "udp_ack_hex": "444345444952310003000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2fcbf5f0a8f2e14dbbedc470293693385b1f6d55783f07aef2baedfa25bd6e3419a958122a473e48ae7a9facf302dd0ee0383102c9ee7dce2ce6aa7f57ed2a0102",
+  "udp_ack_message_hex": "4443452d4469726563746f72792d5544502d76310a10ba682c8ad13513444345444952310003000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f",
+  "udp_challenge_hex": "444345444952310002000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f76f9e711a53c5826fd97aefe8af96c383807585970606281a66c29308668b5574e3c9251a9bc4e19abb2963c2522446a13fa91dded2569c8fa3f3be245a11506",
+  "udp_challenge_message_hex": "4443452d4469726563746f72792d5544502d76310a10ba682c8ad13513444345444952310002000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"
+}
