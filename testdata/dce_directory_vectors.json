@@ -1,6 +1,6 @@
 {
-  "authorization": "OpenCE-Ed25519 keyid=1325b850c2871916, ts=1793800000, nonce=cccccccccccccccccccccccccccccccc, sig=JHsv4/B+G4/oh63iM2ziyhe6NBKfwFurGw4LMnkYaTc+BQSdnX/8o60U6CoyZh1cOOFx98b9z79liSSe6BtgBg==",
-  "canonical_request": "OpenCE-Master-v1\n10ba682c8ad13513\nPUT\n/v1/dce/servers/9bd6d6c8eb79978c\n1793800000\ncccccccccccccccccccccccccccccccc\nbd599f7234e1b52cb32411949d1864982a3354f90929b0cf702f10510f1d29d1",
+  "authorization": "OpenCE-Ed25519 keyid=1325b850c2871916, ts=1793800000, nonce=cccccccccccccccccccccccccccccccc, sig=R/+uO6dkcXkxOkcmC5rdNfQ1oMrPj2YXvXOS7aYDoLgD/AupimQ3+54sn6SIjVqqWGUUwHWekMROXSUVe7rvBQ==",
+  "canonical_request": "OpenCE-Master-v1\n10ba682c8ad13513\nPUT\n/v1/dce/servers/9bd6d6c8eb79978c\n1793800000\ncccccccccccccccccccccccccccccccc\n6e65051abf7acc06834037a1677ff31134e145877297498ba2bb544de9b1b725",
   "challenge_response": {
     "body": "{\"protocol\":1,\"family\":\"dce-net\",\"id\":\"9bd6d6c8eb79978c\",\"master\":{\"key_id\":\"10ba682c8ad13513\",\"time\":1793800000},\"ticket\":\"000102030405060708090a0b0c0d0e0f\",\"expires\":1793800030,\"interval\":30,\"ttl\":90}",
     "headers": {
@@ -14,9 +14,9 @@
   "host_public": "ed25519:a09aa5f47a6759802ff955f8dc2d2a14a5c99d23be97f864127ff9383455a4f0",
   "host_seed_hex": "2222222222222222222222222222222222222222222222222222222222222222",
   "list_response": {
-    "body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":3,\"master\":{\"key_id\":\"10ba682c8ad13513\",\"time\":1793800000},\"ttl\":90,\"truncated\":false,\"servers\":[{\"id\":\"9bd6d6c8eb79978c\",\"key_id\":\"1325b850c2871916\",\"protocol\":1,\"family\":\"dce-net\",\"network_version\":3,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150,\"endpoint\":{\"ip\":\"127.0.0.1\",\"port\":5150},\"updated\":1793800000,\"expires\":1793800090,\"reachable\":true}]}",
+    "body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":4,\"master\":{\"key_id\":\"10ba682c8ad13513\",\"time\":1793800000},\"ttl\":90,\"truncated\":false,\"servers\":[{\"id\":\"9bd6d6c8eb79978c\",\"key_id\":\"1325b850c2871916\",\"protocol\":1,\"family\":\"dce-net\",\"network_version\":4,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"flags\":0,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150,\"endpoint\":{\"ip\":\"127.0.0.1\",\"port\":5150},\"updated\":1793800000,\"expires\":1793800090,\"reachable\":true}]}",
     "headers": {
-      "Signature": "ed25519=iShAYMdVBYOwqjIfxYeqPD0n8OxAKJFKKND5EZHVRVRzuH+kEkwDf4FAX9JcR4tHSW1QkA/a1phVLZKjvGlzAQ==",
+      "Signature": "ed25519=D3cG8NwP80p2JnH+4Qcdw+QMNzmmjYlX2VSOpqX1sJgQkUWmlF5DY0BkodocRST4Ii1dUomu1Nh7ODol44JjBQ==",
       "Signature-Key": "10ba682c8ad13513",
       "Signature-Time": "1793800000"
     },
@@ -28,7 +28,7 @@
   "notice": "SYNTHETIC PUBLIC TEST KEYS ONLY. Never provision these seeds in a service, client profile, VMU or deployment.",
   "observed_endpoint": "127.0.0.1:5150",
   "protocol_spec": "docs/DCE_DIRECTORY_PROTOCOL.md",
-  "put_body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":3,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150}",
+  "put_body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":4,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"flags\":0,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150}",
   "put_path": "/v1/dce/servers/9bd6d6c8eb79978c",
   "server_id": "9bd6d6c8eb79978c",
   "time": 1793800000,

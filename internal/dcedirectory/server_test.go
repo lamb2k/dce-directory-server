@@ -60,7 +60,7 @@ func newHarness(t *testing.T, change func(*Config)) *harness {
 }
 
 func (h *harness) advert() Advertisement {
-	return Advertisement{Protocol: 1, Family: Family, NetworkVersion: 3, Build: 0x12345678, Map: 0,
+	return Advertisement{Protocol: 1, Family: Family, NetworkVersion: 4, Build: 0x12345678, Map: 0,
 		MapCRC: 0x9abcdef0, Mode: 0, Score: 15, Players: 1, Capacity: 2, Name: "DCE fixture",
 		Sequence: 1, Time: h.now.Unix(), Instance: "0123456789abcdef", GamePort: 5150}
 }

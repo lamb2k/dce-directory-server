@@ -72,8 +72,7 @@ type Advertisement struct {
 	Score          uint8  `json:"score"`
 	Players        uint8  `json:"players"`
 	Capacity       uint8  `json:"capacity"`
-	// Flags: bit 0 dial-up limits apply, bit 1 vehicles on (the game's net_limits.h).
-	Flags uint8 `json:"flags"`
+	Flags          uint8  `json:"flags"` // bit 0 dial-up limits apply, bit 1 vehicles on (the game's net_limits.h)
 	Name           string `json:"name"`
 	Sequence       uint32 `json:"sequence"`
 	Time           int64  `json:"time"`
@@ -447,7 +446,7 @@ func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
 		return advert, err
 	}
 	_, relayAsked := fields["relay"]
-	if (!relayAsked && len(fields) != 15) || (relayAsked && (len(fields) != 16 || advert.Relay != 1)) {
+	if (!relayAsked && len(fields) != 16) || (relayAsked && (len(fields) != 17 || advert.Relay != 1)) {
 		return advert, errors.New("missing fields")
 	}
 	for _, value := range fields {
