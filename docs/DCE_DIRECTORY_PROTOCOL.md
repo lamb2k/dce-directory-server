@@ -33,10 +33,10 @@ Every successful JSON response has `Signature: ed25519=<base64 signature of exac
 `PUT /v1/dce/servers/<id>` authenticates the exact body:
 
 ```json
-{"protocol":1,"family":"dce-net","network_version":3,"build":305419896,"map":0,"map_crc":123456789,"mode":0,"score":15,"players":1,"capacity":2,"name":"Test game","sequence":1,"time":1793800000,"instance":"0123456789abcdef","game_port":5150}
+{"protocol":1,"family":"dce-net","network_version":4,"build":305419896,"map":0,"map_crc":123456789,"mode":0,"score":15,"players":1,"capacity":2,"flags":0,"name":"Test game","sequence":1,"time":1793800000,"instance":"0123456789abcdef","game_port":5150}
 ```
 
-Bounds: build/map_crc/sequence unsigned32; sequence>=1 and strictly newer than last accepted PUT for this live instance; map0..255 (client checks installed maps), mode0|1, score10|15|25|50, players1|2 and <=capacity, capacity exactly2; name1..32 printable ASCII bytes, no surrounding whitespace; time within300 seconds of master; game_port1024..65535. Family/protocol/network_version exact as above. No endpoint IP/address is accepted. Trusted HTTP client IP is only a **candidate**, never proof of a game endpoint. A local operator may configure a specific candidate IPv4 override for a particular approved key (for example, a browser gateway or a reviewed LAN host). Without an override, differing HTTP/UDP egress fails closed.
+Bounds: build/map_crc/sequence unsigned32; sequence>=1 and strictly newer than last accepted PUT for this live instance; map0..255 (client checks installed maps), mode0|1, score10|15|25|50, players1..capacity, capacity2..8, flags0..3 (bit 0 dial-up limits apply, bit 1 vehicles on); name1..32 printable ASCII bytes, no surrounding whitespace; time within300 seconds of master; game_port1024..65535. Family/protocol/network_version exact as above. No endpoint IP/address is accepted. Trusted HTTP client IP is only a **candidate**, never proof of a game endpoint. A local operator may configure a specific candidate IPv4 override for a particular approved key (for example, a browser gateway or a reviewed LAN host). Without an override, differing HTTP/UDP egress fails closed.
 
 Successful PUT returns202 and a signed challenge descriptor:
 
@@ -69,7 +69,7 @@ The acknowledgement must come from the exact candidate tuple, with correct ticke
 `GET /v1/dce/servers` returns a signed JSON envelope, sorted by id, maximum64 rows. `?limit=16` selects at most16 rows for bounded clients; limit1..64 only, no other query parameter. Signed `truncated` is true when more eligible rows exist. Default limit64. Dreamcast clients bound response16KiB and request limit16.
 
 ```json
-{"protocol":1,"family":"dce-net","network_version":3,"master":{"key_id":"<16hex>","time":1793800001},"ttl":90,"truncated":false,"servers":[{"id":"<16hex>","key_id":"<16hex>","protocol":1,"family":"dce-net","network_version":3,"build":305419896,"map":0,"map_crc":123456789,"mode":0,"score":15,"players":1,"capacity":2,"name":"Test game","sequence":1,"time":1793800000,"instance":"0123456789abcdef","game_port":5150,"endpoint":{"ip":"203.0.113.1","port":5150},"updated":1793800001,"expires":1793800091,"reachable":true}]}
+{"protocol":1,"family":"dce-net","network_version":4,"master":{"key_id":"<16hex>","time":1793800001},"ttl":90,"truncated":false,"servers":[{"id":"<16hex>","key_id":"<16hex>","protocol":1,"family":"dce-net","network_version":4,"build":305419896,"map":0,"map_crc":123456789,"mode":0,"score":15,"players":1,"capacity":2,"flags":0,"name":"Test game","sequence":1,"time":1793800000,"instance":"0123456789abcdef","game_port":5150,"endpoint":{"ip":"203.0.113.1","port":5150},"updated":1793800001,"expires":1793800091,"reachable":true}]}
 ```
 
 Example address is documentation-only; production never accepts documentation ranges. Rows are present only while proof is fresh and key still approved. `updated` and `expires` are master times of proof/expiry, not host claims. Client checks exact build, network version, map and content CRC before offering existing DCE join; joining still performs the real DCE handshake. No native invite or relabelled native listing exists. Reads are rate limited60/min per address. No default cross-pool fallback.
