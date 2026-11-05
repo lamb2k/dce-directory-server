@@ -27,7 +27,10 @@ import (
 const (
 	Protocol       = 1
 	Family         = "dce-net"
-	NetworkVersion = 3
+	NetworkVersion = 4
+	MinPlayers     = 2
+	MaxPlayers     = 8
+	MaxFlags       = 3
 	ListPath       = "/v1/dce/servers"
 	TTL            = 90 * time.Second
 	TicketTTL      = 30 * time.Second
@@ -69,6 +72,8 @@ type Advertisement struct {
 	Score          uint8  `json:"score"`
 	Players        uint8  `json:"players"`
 	Capacity       uint8  `json:"capacity"`
+	// Flags: bit 0 dial-up limits apply, bit 1 vehicles on (the game's net_limits.h).
+	Flags uint8 `json:"flags"`
 	Name           string `json:"name"`
 	Sequence       uint32 `json:"sequence"`
 	Time           int64  `json:"time"`
@@ -418,7 +423,7 @@ func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
 			return advert, errors.New("duplicate field")
 		}
 		switch key {
-		case "protocol", "family", "network_version", "build", "map", "map_crc", "mode", "score", "players", "capacity", "name", "sequence", "time", "instance", "game_port", "relay":
+		case "protocol", "family", "network_version", "build", "map", "map_crc", "mode", "score", "players", "capacity", "flags", "name", "sequence", "time", "instance", "game_port", "relay":
 		default:
 			return advert, errors.New("noncanonical field")
 		}
@@ -452,7 +457,8 @@ func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
 	}
 	valid := advert.Protocol == Protocol && advert.Family == Family && advert.NetworkVersion == NetworkVersion &&
 		advert.Mode <= 1 && (advert.Score == 10 || advert.Score == 15 || advert.Score == 25 || advert.Score == 50) &&
-		advert.Capacity == 2 && advert.Players >= 1 && advert.Players <= advert.Capacity && advert.Sequence > 0 &&
+		advert.Capacity >= MinPlayers && advert.Capacity <= MaxPlayers && advert.Flags <= MaxFlags &&
+		advert.Players >= 1 && advert.Players <= advert.Capacity && advert.Sequence > 0 &&
 		len(advert.Name) >= 1 && len(advert.Name) <= 32 && strings.TrimSpace(advert.Name) == advert.Name &&
 		len(advert.Instance) == 16 && sign.ValidKeyID(advert.Instance) &&
 		advert.GamePort >= 1024 &&
