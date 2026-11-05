@@ -84,6 +84,25 @@ func TestAskedPutGetsGrant(t *testing.T) {
 	}
 }
 
+func TestListedRowCarriesNoRelayField(t *testing.T) {
+	h, _ := relayHarness(t, 200)
+	advert := h.advert()
+	advert.Relay = 1
+	_, _, response := h.publish(advert)
+	if response.Code != 202 {
+		t.Fatalf("PUT: %d %s", response.Code, response.Body)
+	}
+	probe := h.s.NextProbes()[0]
+	if !h.s.AcceptAck(h.ack(probe), probe.Destination) {
+		t.Fatal("proof failed")
+	}
+	listed := h.do(h.request("GET", ListPath, nil, nil))
+	body := listed.Body.String()
+	if !strings.Contains(body, `"game_port":`) || strings.Contains(body, `"relay"`) {
+		t.Fatalf("row must keep the game's strict schema: %s", body)
+	}
+}
+
 func TestRelayFieldOnlyOne(t *testing.T) {
 	h, _ := relayHarness(t, 200)
 	advert := h.advert()

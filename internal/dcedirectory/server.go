@@ -392,6 +392,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// The relay's port is what guests use; the proof still has to return through it.
 		advert.GamePort = relayed.Port()
 		candidate = relayed.Addr()
+		// The request field stops here: list rows keep the schema every game's strict row reader accepts.
+		advert.Relay = 0
 	}
 	s.publish(w, id, auth.KeyID, advert, netip.AddrPortFrom(candidate, advert.GamePort), grant)
 }
