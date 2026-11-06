@@ -455,7 +455,7 @@ func decodeAdvertisement(body []byte, now time.Time) (Advertisement, error) {
 		}
 	}
 	valid := advert.Protocol == Protocol && advert.Family == Family && advert.NetworkVersion == NetworkVersion &&
-		advert.Mode <= 1 && (advert.Score == 10 || advert.Score == 15 || advert.Score == 25 || advert.Score == 50) &&
+		modeAllowed(advert.Mode) && scoreAllowed(advert.Mode, advert.Score) &&
 		advert.Capacity >= MinPlayers && advert.Capacity <= MaxPlayers && advert.Flags <= MaxFlags &&
 		advert.Players >= 1 && advert.Players <= advert.Capacity && advert.Sequence > 0 &&
 		len(advert.Name) >= 1 && len(advert.Name) <= 32 && strings.TrimSpace(advert.Name) == advert.Name &&
@@ -593,4 +593,19 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request) {
 		result.Servers = result.Servers[:count]
 	}
 	s.signed(w, 200, result, now)
+}
+
+// The game types a console hosts online and their score rows (src/net_proto.h net_game_valid): 0 Slayer, 1 Team Slayer, 2 CTF, 5 Oddball.
+func modeAllowed(mode uint8) bool { return mode == 0 || mode == 1 || mode == 2 || mode == 5 }
+
+func scoreAllowed(mode, score uint8) bool {
+	switch mode {
+	case 0, 1:
+		return score == 10 || score == 15 || score == 25 || score == 50
+	case 2:
+		return score == 1 || score == 3 || score == 5 || score == 10 || score == 15
+	case 5:
+		return score == 1 || score == 2 || score == 5 || score == 10 || score == 15
+	}
+	return false
 }

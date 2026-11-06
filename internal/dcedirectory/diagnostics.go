@@ -126,9 +126,9 @@ func advertisementDiagnostic(advert Advertisement, err error) DiagnosticStage {
 			return DiagAdvertisementFamily
 		case advert.NetworkVersion != NetworkVersion:
 			return DiagAdvertisementNetwork
-		case advert.Mode > 1:
+		case !modeAllowed(advert.Mode):
 			return DiagAdvertisementMode
-		case advert.Score != 10 && advert.Score != 15 && advert.Score != 25 && advert.Score != 50:
+		case !scoreAllowed(advert.Mode, advert.Score):
 			return DiagAdvertisementScore
 		case advert.Capacity < MinPlayers || advert.Capacity > MaxPlayers || advert.Flags > MaxFlags || advert.Players < 1 || advert.Players > advert.Capacity:
 			return DiagAdvertisementPlayers
