@@ -208,6 +208,17 @@ func TestProofRefreshExpiryAndDelete(t *testing.T) {
 	}
 }
 
+func TestOnlineGameTypesAccepted(t *testing.T) {
+	for _, test := range []struct{ mode, score uint8 }{{0, 25}, {1, 50}, {2, 3}, {5, 2}} {
+		h := newHarness(t, nil)
+		a := h.advert()
+		a.Mode, a.Score = test.mode, test.score
+		if _, _, w := h.publish(a); w.Code >= 300 {
+			t.Fatalf("mode %d score %d: got %d %s", test.mode, test.score, w.Code, w.Body)
+		}
+	}
+}
+
 func TestSignatureReplayAndMetadataRefusals(t *testing.T) {
 	for _, test := range []struct {
 		name   string
@@ -219,7 +230,8 @@ func TestSignatureReplayAndMetadataRefusals(t *testing.T) {
 		{"players", func(a *Advertisement) { a.Players = 3 }},
 		{"name", func(a *Advertisement) { a.Name = "bad\nname" }},
 		{"score", func(a *Advertisement) { a.Score = 99 }},
-		{"mode", func(a *Advertisement) { a.Mode = 2 }},
+		{"mode", func(a *Advertisement) { a.Mode = 3 }},
+		{"mode_score", func(a *Advertisement) { a.Mode = 5; a.Score = 50 }},
 		{"old_time", func(a *Advertisement) { a.Time -= 301 }},
 		{"future_time", func(a *Advertisement) { a.Time += 301 }},
 		{"port", func(a *Advertisement) { a.GamePort = 53 }},
