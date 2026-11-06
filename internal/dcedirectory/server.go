@@ -595,8 +595,8 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request) {
 	s.signed(w, 200, result, now)
 }
 
-// The game types a console hosts online and their score rows (src/net_proto.h net_game_valid): 0 Slayer, 1 Team Slayer, 2 CTF, 5 Oddball.
-func modeAllowed(mode uint8) bool { return mode == 0 || mode == 1 || mode == 2 || mode == 5 }
+// The game types a console hosts online and their score rows (src/net_proto.h net_game_valid): 0 Slayer, 1 Team Slayer, 2 CTF, 3 King, 4 Crazy King, 5 Oddball, 6 Race.
+func modeAllowed(mode uint8) bool { return mode <= 6 }
 
 func scoreAllowed(mode, score uint8) bool {
 	switch mode {
@@ -604,8 +604,10 @@ func scoreAllowed(mode, score uint8) bool {
 		return score == 10 || score == 15 || score == 25 || score == 50
 	case 2:
 		return score == 1 || score == 3 || score == 5 || score == 10 || score == 15
-	case 5:
+	case 3, 4, 5:
 		return score == 1 || score == 2 || score == 5 || score == 10 || score == 15
+	case 6:
+		return score == 1 || score == 3 || score == 5 || score == 10 || score == 15 || score == 25
 	}
 	return false
 }
