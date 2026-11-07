@@ -37,6 +37,10 @@ const (
 	MaxBody        = 2048
 	MaxServers     = 64
 	PerKeyServers  = 4
+	// Keys approved by public sign-up share these. The rest stays for operators:
+	// MaxServers-MaxPublicRecords records and MaxApprovedKeys-MaxPublicApprovals keys.
+	MaxPublicRecords   = 16
+	MaxPublicApprovals = 256
 )
 
 // Nonces is implemented by upstream store.Store. Production uses a separate
@@ -46,6 +50,8 @@ type Nonces interface {
 }
 
 type Config struct {
+	// Key ids of Approved that came through public sign-up.
+	PublicKeys map[string]bool
 	Key                ed25519.PrivateKey
 	Approved           []ed25519.PublicKey
 	Nonces             Nonces
@@ -145,6 +151,7 @@ type Server struct {
 	keyID                                                                            string
 	keyIDRaw                                                                         [8]byte
 	approved                                                                         map[string]ed25519.PublicKey
+	publicKeys                                                                       map[string]bool
 	nonces                                                                           Nonces
 	candidateOverrides                                                               map[string]netip.Addr
 	relay                                                                            *RelayConfig
@@ -174,7 +181,7 @@ func New(config Config) (*Server, error) {
 	if config.Random == nil {
 		config.Random = rand.Reader
 	}
-	s := &Server{key: append(ed25519.PrivateKey(nil), config.Key...), approved: map[string]ed25519.PublicKey{},
+	s := &Server{key: append(ed25519.PrivateKey(nil), config.Key...), approved: map[string]ed25519.PublicKey{}, publicKeys: map[string]bool{},
 		nonces: config.Nonces, relay: config.Relay, candidateOverrides: map[string]netip.Addr{}, clients: config.Clients,
 		allowLoopback: config.AllowLoopback, allowPrivateLAN: append([]netip.Prefix(nil), config.AllowPrivateLAN...),
 		now: config.Now, random: config.Random, diagnostics: config.Diagnostics, records: map[string]*record{}, tickets: map[[16]byte]string{}}
@@ -193,6 +200,12 @@ func New(config Config) (*Server, error) {
 	}
 	if len(s.approved) > MaxApprovedKeys {
 		return nil, errors.New("approval capacity")
+	}
+	for keyID := range config.PublicKeys {
+		if s.approved[keyID] == nil {
+			return nil, errors.New("a public key class needs an approved key")
+		}
+		s.publicKeys[keyID] = true
 	}
 	for keyID, address := range config.CandidateOverrides {
 		if s.approved[keyID] == nil || !s.allowedEndpoint(address) {
@@ -502,13 +515,16 @@ func (s *Server) publish(w http.ResponseWriter, id, keyID string, advert Adverti
 		return
 	}
 	if old == nil {
-		count := 0
+		count, public := 0, 0
 		for _, rec := range s.records {
 			if rec.keyID == keyID {
 				count++
 			}
+			if s.publicKeys[rec.keyID] {
+				public++
+			}
 		}
-		if count >= PerKeyServers || len(s.records) >= MaxServers {
+		if count >= PerKeyServers || len(s.records) >= MaxServers || (s.publicKeys[keyID] && public >= MaxPublicRecords) {
 			s.diagnostics.record(DiagPublishQuota)
 			s.fail(w, 429, "quota")
 			return

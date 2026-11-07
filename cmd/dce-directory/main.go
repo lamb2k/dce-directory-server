@@ -58,34 +58,38 @@ func bindState(path, keyID string) error {
 	return errors.Join(writeErr, closeErr)
 }
 
-func approvals(path string) ([]ed25519.PublicKey, map[string]netip.Addr, error) {
+func approvals(path string) ([]ed25519.PublicKey, map[string]netip.Addr, map[string]bool, error) {
 	entries, err := dcedirectory.ReadApprovalFile(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	publicKeys := map[string]bool{}
 	keys := make([]ed25519.PublicKey, 0, len(entries))
 	overrides := map[string]netip.Addr{}
 	seen := map[string]bool{}
 	for _, entry := range entries {
 		public, err := sign.ParsePublicKey(entry.PublicKey)
 		if err != nil {
-			return nil, nil, errors.New("invalid approved public key")
+			return nil, nil, nil, errors.New("invalid approved public key")
 		}
 		id := sign.KeyID(public)
 		if seen[id] {
-			return nil, nil, errors.New("duplicate approved key")
+			return nil, nil, nil, errors.New("duplicate approved key")
 		}
 		seen[id] = true
 		keys = append(keys, public)
+		if entry.Public {
+			publicKeys[id] = true
+		}
 		if entry.CandidateIP != "" {
 			address, err := netip.ParseAddr(entry.CandidateIP)
 			if err != nil || !address.Is4() {
-				return nil, nil, errors.New("candidate override must be IPv4")
+				return nil, nil, nil, errors.New("candidate override must be IPv4")
 			}
 			overrides[id] = address
 		}
 	}
-	return keys, overrides, nil
+	return keys, overrides, publicKeys, nil
 }
 
 func readEnrollmentToken(path string) (string, error) {
@@ -167,7 +171,7 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return errors.New("cannot load DCE master key; supply an existing key file")
 	}
-	keys, overrides, err := approvals(*approvalPath)
+	keys, overrides, publicKeys, err := approvals(*approvalPath)
 	if err != nil {
 		return fmt.Errorf("approval file: %w", err)
 	}
@@ -206,7 +210,7 @@ func run(ctx context.Context, args []string) error {
 		}
 		relay = &dcedirectory.RelayConfig{Control: *relayControl, Key: strings.TrimSpace(string(keyBytes)), Public: address, HelloPort: uint16(*relayHello)}
 	}
-	service, err := dcedirectory.New(dcedirectory.Config{Relay: relay, Key: private, Approved: keys, Nonces: db,
+	service, err := dcedirectory.New(dcedirectory.Config{Relay: relay, Key: private, Approved: keys, PublicKeys: publicKeys, Nonces: db,
 		CandidateOverrides: overrides, Clients: httpx.Clients{Proxies: proxies}, AllowLoopback: *loopback, AllowPrivateLAN: lan, Diagnostics: diagnostics})
 	if err != nil {
 		return err

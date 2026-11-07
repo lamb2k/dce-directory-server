@@ -27,6 +27,10 @@ const EnrollmentDomain = "DCE-Device-Enrollment-v1"
 const EnrollmentTTL = 60 * time.Second
 const EnrollmentPath = "/v1/dce/enrollment/"
 
+// EnrollmentClassHeader is set by the loopback relay that serves public
+// sign-up: "public" puts the key in the public pool. Absent means operator.
+const EnrollmentClassHeader = "X-DCE-Enrollment-Class"
+
 type EnrollmentConfig struct {
 	Token       string
 	Approvals   *ApprovalFile
@@ -192,6 +196,12 @@ func (e *Enrollment) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.server.fail(w, 400, "session_binding")
 		return
 	}
+	class := r.Header.Get(EnrollmentClassHeader)
+	if class != "" && class != "operator" && class != "public" {
+		e.server.fail(w, 400, "enrollment_class")
+		return
+	}
+	publicClass := class == "public"
 	perSession, global := e.registrations, e.allRegistrations
 	if challengeRequest {
 		perSession, global = e.challenges, e.allChallenges
@@ -275,7 +285,16 @@ func (e *Enrollment) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		e.server.fail(w, 401, "proof")
 		return
 	}
-	created, err := e.server.enroll(e.file, public, e.candidate)
+	candidate := e.candidate
+	if publicClass {
+		// The operator's address override is for the operator's own hosts.
+		candidate = netip.Addr{}
+	}
+	created, err := e.server.enroll(e.file, public, candidate, publicClass)
+	if errors.Is(err, errPublicCapacity) {
+		e.server.fail(w, 429, "public_capacity")
+		return
+	}
 	if err != nil {
 		e.server.fail(w, 503, "approval_not_committed")
 		return

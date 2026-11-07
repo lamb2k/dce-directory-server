@@ -19,7 +19,11 @@ const MaxApprovedKeys = 1024
 type Approval struct {
 	PublicKey   string `json:"public_key"`
 	CandidateIP string `json:"candidate_ip,omitempty"`
+	// Approved by public sign-up, not an operator. Rows from before this field count as operator keys.
+	Public bool `json:"public,omitempty"`
 }
+
+var errPublicCapacity = errors.New("public approval capacity")
 
 // ReadApprovalFile reads public metadata only. The file remains operator owned.
 func ReadApprovalFile(path string) ([]Approval, error) {
@@ -73,7 +77,7 @@ type ApprovalFile struct {
 	mu   sync.Mutex
 }
 
-func (a *ApprovalFile) add(public ed25519.PublicKey, candidate netip.Addr) (Approval, bool, error) {
+func (a *ApprovalFile) add(public ed25519.PublicKey, candidate netip.Addr, publicClass bool) (Approval, bool, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	lock, err := os.OpenFile(a.Path+".enrollment-lock", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
@@ -86,7 +90,11 @@ func (a *ApprovalFile) add(public ed25519.PublicKey, candidate netip.Addr) (Appr
 		return Approval{}, false, errors.New("cannot read approval state")
 	}
 	keyID := sign.KeyID(public)
+	publicCount := 0
 	for _, entry := range entries {
+		if entry.Public {
+			publicCount++
+		}
 		old, _ := sign.ParsePublicKey(entry.PublicKey)
 		if sign.KeyID(old) == keyID {
 			if !bytes.Equal(old, public) {
@@ -98,7 +106,10 @@ func (a *ApprovalFile) add(public ed25519.PublicKey, candidate netip.Addr) (Appr
 	if len(entries) >= MaxApprovedKeys {
 		return Approval{}, false, errors.New("approval capacity")
 	}
-	entry := Approval{PublicKey: sign.PublicKeyText(public)}
+	if publicClass && publicCount >= MaxPublicApprovals {
+		return Approval{}, false, errPublicCapacity
+	}
+	entry := Approval{PublicKey: sign.PublicKeyText(public), Public: publicClass}
 	if candidate.IsValid() {
 		entry.CandidateIP = candidate.String()
 	}
@@ -137,7 +148,7 @@ func (a *ApprovalFile) add(public ed25519.PublicKey, candidate netip.Addr) (Appr
 
 // enroll persists and verifies the approval before publishing it to concurrent
 // game requests. Holding mu also prevents inconsistent key/override snapshots.
-func (s *Server) enroll(file *ApprovalFile, public ed25519.PublicKey, candidate netip.Addr) (bool, error) {
+func (s *Server) enroll(file *ApprovalFile, public ed25519.PublicKey, candidate netip.Addr, publicClass bool) (bool, error) {
 	if len(public) != ed25519.PublicKeySize || sign.SmallOrder(public) {
 		return false, errors.New("invalid public key")
 	}
@@ -150,10 +161,13 @@ func (s *Server) enroll(file *ApprovalFile, public ed25519.PublicKey, candidate 
 	if s.approved[id] == nil && len(s.approved) >= MaxApprovedKeys {
 		return false, errors.New("approval capacity")
 	}
+	if s.approved[id] == nil && publicClass && len(s.publicKeys) >= MaxPublicApprovals {
+		return false, errPublicCapacity
+	}
 	if candidate.IsValid() && !s.allowedEndpoint(candidate) {
 		return false, errors.New("candidate policy")
 	}
-	entry, created, err := file.add(public, candidate)
+	entry, created, err := file.add(public, candidate, publicClass)
 	if err != nil {
 		return false, err
 	}
@@ -165,6 +179,9 @@ func (s *Server) enroll(file *ApprovalFile, public ed25519.PublicKey, candidate 
 		}
 	}
 	s.approved[id] = append(ed25519.PublicKey(nil), public...)
+	if entry.Public {
+		s.publicKeys[id] = true
+	}
 	if storedCandidate.IsValid() {
 		s.candidateOverrides[id] = storedCandidate
 	}

@@ -58,7 +58,7 @@ func TestApprovalFileOnlyPublicKeyAndOperatorIPv4(t *testing.T) {
 		if err := os.WriteFile(path, []byte(test.body), 0600); err != nil {
 			t.Fatal(err)
 		}
-		keys, _, err := approvals(path)
+		keys, _, _, err := approvals(path)
 		if (err == nil) != test.good {
 			t.Fatalf("approval parse good=%v err=%v", test.good, err)
 		}
