@@ -21,11 +21,16 @@
 #                                           for an external proxy (8090)
 #   --dir <path>       OPENCE_DIR           where it goes (/opt/opence-master)
 #   --yes              OPENCE_YES=1         no questions: the bundled proxy
-#                                           unless --proxy says otherwise, and
-#                                           Docker installed if missing
+#                                           unless --proxy says otherwise
+#   --install-docker   OPENCE_INSTALL_DOCKER=1  run Docker's own script if Docker
+#                                           is missing, unasked. --yes alone
+#                                           never runs a downloaded script as root
 set -eu
 
 REPO="OpenCommunityEdition/opence-master-server"
+# The release key, public half (internal/update/key.go): signs SHA256SUMS. A fork's releases set OPENCE_RELEASE_KEY.
+RELEASE_KEY="${OPENCE_RELEASE_KEY:-a61b8ee032e662ff0ba1fc60f60b689343c8893bfa4db6e82f5b791030c6c486}"
+INSTALL_DOCKER="${OPENCE_INSTALL_DOCKER:-}"
 BASE="${OPENCE_RELEASE_URL:-https://github.com/$REPO/releases/latest/download}"
 DIR="${OPENCE_DIR:-/opt/opence-master}"
 DOMAIN="${OPENCE_DOMAIN:-}"
@@ -51,6 +56,7 @@ while [ $# -gt 0 ]; do
 	--dir) [ $# -ge 2 ] || fail "--dir needs a path"; DIR="$2"; shift 2 ;;
 	--dir=*) DIR="${1#--dir=}"; shift ;;
 	-y | --yes) YES=1; shift ;;
+	--install-docker) INSTALL_DOCKER=1; shift ;;
 	-h | --help) sed -n '2,29p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
 	*) fail "unknown option $1 (--help lists them)" ;;
 	esac
@@ -65,6 +71,35 @@ ask() {
 		read -r answer </dev/tty || answer=""
 	fi
 }
+
+# ---------- the release's signature
+
+# hex_bytes HEX: the bytes. POSIX printf; no xxd on a small server.
+hex_bytes() {
+	hex_rest="$1"
+	while [ -n "$hex_rest" ]; do
+		hex_pair="${hex_rest%"${hex_rest#??}"}"
+		hex_rest="${hex_rest#??}"
+		# shellcheck disable=SC2059
+		printf "\\$(printf '%03o' "0x$hex_pair")"
+	done
+}
+
+# verify_sums DIR KEY: DIR/SHA256SUMS.sig is KEY's Ed25519 signature of DIR/SHA256SUMS. Returns non-zero otherwise.
+verify_sums() {
+	sig_hex="$(tr -d ' \r\n' <"$1/SHA256SUMS.sig")"
+	printf '%s' "$sig_hex" | grep -Eq '^[0-9a-fA-F]{128}$' || return 1
+	printf '%s' "$2" | grep -Eq '^[0-9a-fA-F]{64}$' || return 1
+	hex_bytes "$sig_hex" >"$1/sums.sig.bin"
+	# (the fixed DER header of an Ed25519 public key, then the key)
+	{
+		printf '%s\n' '-----BEGIN PUBLIC KEY-----'
+		{ hex_bytes 302a300506032b6570032100; hex_bytes "$2"; } | openssl base64 -A
+		printf '\n%s\n' '-----END PUBLIC KEY-----'
+	} >"$1/release-key.pem"
+	openssl pkeyutl -verify -pubin -inkey "$1/release-key.pem" -rawin -in "$1/SHA256SUMS" -sigfile "$1/sums.sig.bin" >/dev/null 2>&1
+}
+# ---------- end of the signature functions
 
 # ---------- what it needs
 
@@ -93,8 +128,10 @@ fi
 
 step "Docker"
 if ! command -v docker >/dev/null 2>&1; then
-	if [ -n "$YES" ]; then
+	if [ -n "$INSTALL_DOCKER" ]; then
 		answer=y
+	elif [ -n "$YES" ]; then
+		fail "Docker is not installed, and --yes does not run a downloaded script as root: install Docker first (https://docs.docker.com/engine/install/), or add --install-docker"
 	else
 		ask "Docker is not installed. Install it with Docker's own script (https://get.docker.com)? [Y/n]"
 	fi
@@ -102,7 +139,7 @@ if ! command -v docker >/dev/null 2>&1; then
 	"" | y | Y | yes) ;;
 	*) fail "Docker is needed: https://docs.docker.com/engine/install/" ;;
 	esac
-	if [ -n "$YES" ] || [ -r /dev/tty ]; then :; else fail "no terminal to ask on: run it with --yes"; fi
+	if [ -n "$INSTALL_DOCKER" ] || [ -r /dev/tty ]; then :; else fail "no terminal to ask on: run it with --install-docker"; fi
 	tmp_docker="$(mktemp)"
 	fetch https://get.docker.com "$tmp_docker"
 	$SUDO sh "$tmp_docker"
@@ -206,13 +243,16 @@ fi
 step "Files in $DIR"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-for f in compose.yaml compose.proxy.yaml Caddyfile SHA256SUMS; do
+for f in compose.yaml compose.proxy.yaml Caddyfile SHA256SUMS SHA256SUMS.sig; do
 	fetch "$BASE/$f" "$tmp/$f" || fail "$BASE/$f could not be downloaded"
 done
-if command -v sha256sum >/dev/null 2>&1; then
-	(cd "$tmp" && grep -E '  (compose\.yaml|compose\.proxy\.yaml|Caddyfile)$' SHA256SUMS | sha256sum -c --status) ||
-		fail "the downloaded files are not the release's (SHA256SUMS)"
-fi
+command -v sha256sum >/dev/null 2>&1 || fail "sha256sum is needed to check the release's files (the coreutils package)"
+command -v openssl >/dev/null 2>&1 || fail "openssl 3 is needed to check the release's signature (the openssl package)"
+verify_sums "$tmp" "$RELEASE_KEY" || fail "SHA256SUMS is not signed by the release key: nothing installed"
+[ "$(grep -cE '  (compose\.yaml|compose\.proxy\.yaml|Caddyfile)$' "$tmp/SHA256SUMS")" = 3 ] ||
+	fail "SHA256SUMS does not name the release's three files: nothing installed"
+(cd "$tmp" && grep -E '  (compose\.yaml|compose\.proxy\.yaml|Caddyfile)$' SHA256SUMS | sha256sum -c --status) ||
+	fail "the downloaded files are not the release's (SHA256SUMS)"
 $SUDO mkdir -p "$DIR/deploy"
 $SUDO install -m 644 "$tmp/compose.yaml" "$DIR/compose.yaml"
 $SUDO install -m 644 "$tmp/compose.proxy.yaml" "$DIR/compose.proxy.yaml"
@@ -283,7 +323,7 @@ say "Wrote compose.yaml, compose.proxy.yaml, deploy/Caddyfile, .env and master.e
 step "Starting the master and Caddy"
 cd "$DIR"
 if ! $SUDO docker compose pull --quiet; then
-	$SUDO docker image inspect ghcr.io/opencommunityedition/opence-master-server:latest >/dev/null 2>&1 ||
+	$SUDO docker image inspect "$(sed -n 's/^ *image: \(ghcr[^ ]*\)$/\1/p' "$DIR/compose.yaml")" >/dev/null 2>&1 ||
 		fail "the image could not be downloaded (ghcr.io/opencommunityedition/opence-master-server)"
 	say "Warning: the images were not updated; using the ones already here."
 fi
