@@ -11,7 +11,7 @@ import (
 )
 
 func TestListEchoesNonceUnderTheSignature(t *testing.T) {
-	h := newHarness(t)
+	h := newHarness(t, nil)
 	nonce := strings.Repeat("ab", 16)
 	for _, query := range []string{"?nonce=" + nonce, "?limit=1&nonce=" + nonce, "?nonce=" + nonce + "&limit=1"} {
 		w := httptest.NewRecorder()
@@ -30,7 +30,7 @@ func TestListEchoesNonceUnderTheSignature(t *testing.T) {
 }
 
 func TestListWithoutNonceKeepsItsBytes(t *testing.T) {
-	h := newHarness(t)
+	h := newHarness(t, nil)
 	w := httptest.NewRecorder()
 	h.s.ServeHTTP(w, httptest.NewRequest("GET", ListPath+"?limit=1", nil))
 	if w.Code != 200 || strings.Contains(w.Body.String(), "nonce") {
@@ -39,7 +39,7 @@ func TestListWithoutNonceKeepsItsBytes(t *testing.T) {
 }
 
 func TestListRefusesBadNonces(t *testing.T) {
-	h := newHarness(t)
+	h := newHarness(t, nil)
 	for _, query := range []string{"?nonce=short", "?nonce=" + strings.Repeat("AB", 16), "?nonce=" + strings.Repeat("ab", 16) + "&nonce=" + strings.Repeat("cd", 16), "?nonce=" + strings.Repeat("ab", 16) + "&other=1"} {
 		w := httptest.NewRecorder()
 		h.s.ServeHTTP(w, httptest.NewRequest("GET", ListPath+query, nil))

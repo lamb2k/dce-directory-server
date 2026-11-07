@@ -80,6 +80,7 @@ type linking struct{ settings discord.LinkSettings }
 func (l linking) LinkSettings() discord.LinkSettings { return l.settings }
 
 type linkHarness struct {
+	visits  int64
 	t       *testing.T
 	m       *core.Master
 	pages   *web.Pages
@@ -169,7 +170,9 @@ var statePattern = regexp.MustCompile(`state=([0-9a-f]{32})`)
 // carries.
 func (h *linkHarness) start(c *http.Client, player ed25519.PrivateKey) (string, string) {
 	h.t.Helper()
-	ts := h.m.Now().Unix()
+	// (each visit is a new link, as the game makes: a signature works once)
+	h.visits++
+	ts := h.m.Now().Unix() - h.visits
 	status, _, page := h.get(c, h.server.URL+"/link?"+sign.SignPlayerQuery(player, sign.LinkLabel, h.m.KeyID, ts))
 	code := sign.LinkCode(player.Public().(ed25519.PublicKey), itoa(ts))
 	if status != 200 || !strings.Contains(page, "Link Discord to the OpenCE game showing "+code) ||
@@ -188,6 +191,19 @@ func (h *linkHarness) start(c *http.Client, player ed25519.PrivateKey) (string, 
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+func TestLinkURLWorksOnce(t *testing.T) {
+	h := newLinkHarness(t, nil)
+	_, player, _ := ed25519.GenerateKey(nil)
+	link := h.server.URL + "/link?" + sign.SignPlayerQuery(player, sign.LinkLabel, h.m.KeyID, h.m.Now().Unix())
+	if status, _, _ := h.get(browser(), link); status != 200 {
+		t.Fatal("first use", status)
+	}
+	status, _, page := h.get(browser(), link)
+	if status != 401 || !strings.Contains(page, "already used") {
+		t.Fatalf("second use: %d %s", status, page)
+	}
+}
 
 func TestLinkFlow(t *testing.T) {
 	h := newLinkHarness(t, nil)

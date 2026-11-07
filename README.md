@@ -39,6 +39,8 @@ points at it:
 
 ```sh
 curl -fsSL https://github.com/OpenCommunityEdition/opence-master-server/releases/latest/download/install.sh | sh
+# needs sha256sum and openssl 3: it checks the release's signature and sums, and stops if either fails.
+# --yes does not install Docker; add --install-docker to run Docker's own script unasked.
 ```
 
 It asks how HTTPS reaches the master, and for its domain; it installs

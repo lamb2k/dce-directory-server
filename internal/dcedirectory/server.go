@@ -51,7 +51,7 @@ type Nonces interface {
 
 type Config struct {
 	// Key ids of Approved that came through public sign-up.
-	PublicKeys map[string]bool
+	PublicKeys         map[string]bool
 	Key                ed25519.PrivateKey
 	Approved           []ed25519.PublicKey
 	Nonces             Nonces

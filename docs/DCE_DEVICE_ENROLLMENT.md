@@ -54,6 +54,8 @@ Signed200 response:
 {"ok":true,"masterKeyId":"<16hex>","keyId":"<16hex>","publicKey":"ed25519:<64hex>","approved":true,"created":true,"serverTime":1793800001}
 ```
 
+A relay that serves public sign-up sends `X-DCE-Enrollment-Class: public`. Those keys are stored with `"public": true` and share `MaxPublicRecords` (16) listed records and `MaxPublicApprovals` (256) approvals; at the cap, registration answers 429 `public_capacity`. Without the header a key is an operator key, which keeps the remaining 48 records and 768 approvals. Approval files from before this change read as operator keys. An older server binary refuses a file holding `public` rows, so roll back with the file as it was.
+
 Both responses use existing `Signature`, `Signature-Key`, `Signature-Time` headers over exact serialized bytes. `serverTime` equals `Signature-Time`, including retries. Gateway verifies the configured master public key/id and clock before trusting fields or forwarding authoritative UTC. It must not forward arbitrary time/URL values. Successful enrollment supplies no private credential.
 
 Challenge lifetime60 seconds, bound to one session and public key. A fresh challenge replaces that session's previous challenge. Exact successful registration retry (same session/key/challenge/signature) within its original TTL returns the same approval result with fresh signed serverTime, without another file update. A new cookie/session needs a new challenge/proof; the same saved device key returns `created:false`, preserving identity without reinstallation. Invalid/expired proof cannot enroll a key just because another session previously enrolled it.

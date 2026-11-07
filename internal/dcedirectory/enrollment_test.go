@@ -211,7 +211,7 @@ func TestConcurrentApprovalWritesPreserveAllKeys(t *testing.T) {
 		go func(n int) {
 			defer group.Done()
 			public := testKey(byte(n)).Public().(ed25519.PublicKey)
-			_, err := h.s.enroll(file, public, netip.Addr{})
+			_, err := h.s.enrollOperatorForTest(file, public, netip.Addr{})
 			errorsCh <- err
 		}(i)
 	}

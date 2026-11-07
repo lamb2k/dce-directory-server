@@ -17,10 +17,10 @@ func TestPlayerQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Unix(1760900100, 0)
-	if err := q.Check(LinkLabel, "39f713d0a644253f", at.Add(600*time.Second), LinkWindow); err != nil {
+	if err := q.Check(LinkLabel, "39f713d0a644253f", at.Add(300*time.Second), LinkWindow); err != nil {
 		t.Fatal(err)
 	}
-	if err := q.Check(LinkLabel, "39f713d0a644253f", at.Add(601*time.Second), LinkWindow); !errors.Is(err, ErrClock) {
+	if err := q.Check(LinkLabel, "39f713d0a644253f", at.Add(301*time.Second), LinkWindow); !errors.Is(err, ErrClock) {
 		t.Fatalf("a stale ts: %v", err)
 	}
 	if err := q.Check(PassGetLabel, "39f713d0a644253f", at, ClockWindow); !errors.Is(err, ErrBadSignature) {
