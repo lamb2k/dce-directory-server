@@ -1,6 +1,7 @@
 package web
 
 import (
+	"crypto/sha256"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -157,6 +158,19 @@ func (p *Pages) link(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		p.message(w, r, http.StatusUnauthorized, "Bad link", Message{Heading: "This link is not valid",
 			Lines: []string{"Start again from the game: open the link it gives, whole.", "(bad_signature)"}})
+		return
+	}
+	// One use per signed link: anyone who sees the URL could otherwise bind their own Discord account to the key.
+	digest := sha256.Sum256(query.Signature)
+	fresh, err := p.M.Store.UseNonce("link", hex.EncodeToString(digest[:]), sign.LinkUseWindow)
+	if err != nil {
+		p.message(w, r, http.StatusInternalServerError, "Error", Message{Heading: "The master failed",
+			Lines: []string{"Try again in a moment."}})
+		return
+	}
+	if !fresh {
+		p.message(w, r, http.StatusUnauthorized, "Link used", Message{Heading: "This link was already used",
+			Lines: []string{"Start again from the game: it makes a new link each time.", "(used)"}})
 		return
 	}
 	code := sign.LinkCode(query.Key, query.TS)

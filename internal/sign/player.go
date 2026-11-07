@@ -29,7 +29,11 @@ const (
 
 // LinkWindow is how far a link's ts may be from the master's clock (a pass
 // request's: ClockWindow).
-const LinkWindow = 600 * time.Second
+const LinkWindow = 300 * time.Second
+
+// LinkUseWindow is how long a used link's signature is remembered: longer
+// than any ts can stay within LinkWindow of the clock.
+const LinkUseWindow = 2 * LinkWindow
 
 var hexSignature = regexp.MustCompile(`^[0-9a-f]{128}$`)
 

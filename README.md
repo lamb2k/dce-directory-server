@@ -515,7 +515,7 @@ log, with its actor (`discord:<id> <name>` for the player's own).
 | --- | --- | --- |
 | `GET /v1/netlist` | anyone (the list's limit) | The netlist (`application/octet-stream`), signed in `Signature`, `Signature-Key`, `Signature-Time` (its generated time), with an `ETag` (`If-None-Match` answers 304), `Cache-Control: public, max-age=300` and gzip when asked; `503 netlist_unavailable` while none is built, or with `MASTER_NETLIST=off` |
 | `GET /v1/pass?key=&ts=&sig=` | the player key's holder (signed in the query, `ts` within 300 seconds) | The 170-byte pass, `Cache-Control: no-store`; `404 not_linked`, `403 link_revoked` (the reason in `message`), `401 bad_signature` or `clock`, `429 rate_limited` (30 a minute per key, and the list's limit per address) |
-| `GET /link?key=&ts=&sig=` | people (the game opens it; `ts` within 600 seconds) | The confirmation code and **Continue with Discord** |
+| `GET /link?key=&ts=&sig=` | people (the game opens it; `ts` within 300 seconds, one use) | The confirmation code and **Continue with Discord** |
 | `GET /link/callback` | Discord's OAuth2 redirect | The link recorded, or why not |
 | `GET /link/manage` | people (after a Discord login) | The account's keys, **Unlink** and **Delete everything** |
 | `GET /privacy` | anyone | What is kept, and the netlist's sources and their licences |
