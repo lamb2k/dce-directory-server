@@ -28,6 +28,8 @@ Clock tolerance300 seconds; nonce replay memory600 seconds, retained in a separa
 
 Every successful JSON response has `Signature: ed25519=<base64 signature of exact body bytes>`, `Signature-Key: <master key id>`, `Signature-Time: <UTC seconds>` and exposes these headers through CORS. List body `master.time` equals `Signature-Time`. Verify pinned master key, key id, timestamp and exact body signature before reading entries.
 
+`Signature-Time` is outside the signature; `master.time` is inside it. A caller with no trusted clock adds `nonce=<32 lowercase hex>` to the list query, alone or after `limit=` (`?limit=1&nonce=...`). The signed body then ends with `"nonce":"..."`, the same value. A body whose nonce differs or is missing is an old or replayed answer. Without the parameter the body is byte-for-byte what it was, so existing clients are unaffected. Servers from before this change answer the parameter with 400 `query`: deploy the server before any client that sends it.
+
 ## Register and refresh
 
 `PUT /v1/dce/servers/<id>` authenticates the exact body:

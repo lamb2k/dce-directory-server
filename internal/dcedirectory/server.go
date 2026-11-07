@@ -116,6 +116,9 @@ type List struct {
 	TTL            int     `json:"ttl"`
 	Truncated      bool    `json:"truncated"`
 	Servers        []Entry `json:"servers"`
+	// The caller's nonce, echoed under the signature: proof master.time is this
+	// answer's, for a console with no clock of its own. Only when asked for.
+	Nonce string `json:"nonce,omitempty"`
 }
 
 type Challenge struct {
@@ -579,6 +582,15 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, 400, "query")
 		return
 	}
+	nonce := ""
+	if values, asked := query["nonce"]; asked {
+		if len(values) != 1 || !lowerHex(values[0], 16) {
+			s.fail(w, 400, "nonce")
+			return
+		}
+		nonce = values[0]
+		delete(query, "nonce")
+	}
 	if len(query) != 0 {
 		values := query["limit"]
 		if len(query) != 1 || len(values) != 1 {
@@ -594,7 +606,7 @@ func (s *Server) list(w http.ResponseWriter, r *http.Request) {
 	}
 	now := s.now()
 	result := List{Protocol: Protocol, Family: Family, NetworkVersion: NetworkVersion,
-		Master: Master{s.keyID, now.Unix()}, TTL: 90, Servers: []Entry{}}
+		Master: Master{s.keyID, now.Unix()}, TTL: 90, Servers: []Entry{}, Nonce: nonce}
 	s.mu.Lock()
 	s.sweep(now)
 	for _, rec := range s.records {
